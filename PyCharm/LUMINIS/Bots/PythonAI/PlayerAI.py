@@ -75,10 +75,6 @@ class PlayerAI:
 
             return total / len(changeList);
 
-    """
-    Contest Range
-    """
-
     def TotalArmyValue(self, units):
         totalArmyValue = 0
         for unit in units:
@@ -87,12 +83,12 @@ class PlayerAI:
 
     def StrongestUnits(self, units):
         strongestUnits = units
-        strongestUnits.sort(key=lambda unit: unit.health, reverse=True);
+        strongestUnits.sort(key=lambda unit: unit.health);
 
         return strongestUnits
 
     def UpdateExpansionList(self, world, enemy_units):
-        friendNestPositions = World.get_friendly_nest_positions()
+        friendNestPositions = world.get_friendly_nest_positions()
         nestEnemyPairs =[]
         for position in friendNestPositions:
             shortestDistance = -1
@@ -104,3 +100,25 @@ class PlayerAI:
                     closestEnemies.append(enemy)
             nestEnemyPairs.append((position, closestEnemies))
         self.EXPANSIONLIST.append(nestEnemyPairs)
+
+    """
+    Contest Range
+    """
+    def CheckContestRange(self, world, total_army_value, friendly_units, enemy_position, nest_position):
+        defendingUnitsTAV = 0
+        for unit in friendly_units:
+            if world.get_shortest_path_distance(nest_position, unit.position)  < world.get_shortest_path_distance(nest_position, enemy_position):
+                defendingUnitsTAV+= unit.health;
+
+        return defendingUnitsTAV - total_army_value
+
+    def CheckEnemiesWithinRange(self, world, enemy_units, nest_position, range):
+        enemies = []
+        for enemy in enemy_units:
+            if world.get_shortest_path_distance(nest_position, enemy.position) < range:
+                enemies.append(enemy);
+        return enemies
+
+
+
+
