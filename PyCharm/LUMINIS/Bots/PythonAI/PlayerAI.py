@@ -104,3 +104,22 @@ class PlayerAI:
                     closestEnemies.append(enemy)
             nestEnemyPairs.append((position, closestEnemies))
         self.EXPANSIONLIST.append(nestEnemyPairs)
+
+
+    def IsNestable(self, world, nestPoint):
+        if world.get_tile_at(nestPoint).is_neutral():
+            return False;
+
+        tilesAround = nestPoint.world.get_tiles_around();
+        for key in tilesAround:
+            if tilesAround[key].is_permanently_owned():
+                return False;
+        return True;
+
+    def GetListOfPossibleNests(self, world):
+        neutralTiles = world.get_neutral_tiles();
+        neutralTiles.sort(key=lambda x: world.get_shortest_path(x.position, world.get_closest_friendly_nest_from(x.position)), reverse=True);
+
+    
+
+
