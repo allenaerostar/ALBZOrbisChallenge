@@ -8,7 +8,8 @@ class PlayerAI:
     NESTCHANGES_ENEMY = list();
     NESTCHANGES_FRIENDLY = list();
     TURNCOUNT = 1;
-    EXPANSIONLIST = []
+    EXPANSIONLIST = [];
+    POTENTIALNESTS = [];
 
     def __init__(self):
         """
@@ -28,6 +29,8 @@ class PlayerAI:
         """
         self.UpdateNestChanges(world, True);
         self.UpdateNestChanges(world, False);
+        self.UpdateExpansionList(world, enemy_units);
+        POTENTIALNESTS = self.GetListOfPossibleNests(world, enemy_units, friendly_units);
 
         # Fly away to freedom, daring fireflies
         # Build thou nests
@@ -112,15 +115,22 @@ class PlayerAI:
         return True;
 
     def GetListOfPossibleNests(self, world, enemy_units, friendly_units):
-        RANGE = 5;
+        RANGE = 6;
         neutralTiles = world.get_neutral_tiles();
-        neutralTiles.sort(key=lambda x: world.get_shortest_path(x.position, world.get_closest_friendly_nest_from(x.position)), reverse=True);
-        neutralTiles.sort(key=lambda x: self.SortBySafestNestPriority(x, world, enemy_units, friendly_units, range));
+        #neutralTiles.sort(key=lambda x: world.get_shortest_path(x.position, world.get_closest_friendly_nest_from(x.position, None), None), reverse=True);
+        neutralTiles.sort(key=lambda x: self.SortBySafestNestPriority(x, world, enemy_units, friendly_units, RANGE));
         return neutralTiles;
 
     def SortBySafestNestPriority(self, x, world, enemy_units, friendly_units, range):
         enemies = self.CheckEnemiesWithinRange(world, enemy_units, x.position, range);
-        return self.CheckContestRange(world, self.SumUnitValue(enemies), friendly_units, enemies[0], x.position);
+        friends = self.CheckAlliesWithinRange(world, friendly_units, x.position, range);
+
+        if(len(friends) == 0):
+            return -999;
+        if(len(enemies) > 0):
+            return self.CheckContestRange(world, self.SumUnitValue(enemies), friendly_units, enemies[0].position, x.position);
+        else:
+            return 999;
 
     """
     Contest Range
@@ -139,6 +149,13 @@ class PlayerAI:
             if world.get_shortest_path_distance(nest_position, enemy.position) < range:
                 enemies.append(enemy);
         return enemies
+
+    def CheckAlliesWithinRange(self, world, friendly_units, nest_position, range):
+        friendly = []
+        for friend in friendly_units:
+            if world.get_shortest_path_distance(nest_position, friend.position) < range:
+                friendly.append(friend);
+        return friendly
 
     def SumUnitValue(self, units):
         sum = 0;
