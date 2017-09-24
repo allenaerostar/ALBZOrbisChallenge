@@ -111,20 +111,27 @@ class PlayerAI:
                 return False;
         return True;
 
-    def GetListOfPossibleNests(self, world):
+    def GetListOfPossibleNests(self, world, enemy_units, friendly_units):
+        RANGE = 5;
         neutralTiles = world.get_neutral_tiles();
         neutralTiles.sort(key=lambda x: world.get_shortest_path(x.position, world.get_closest_friendly_nest_from(x.position)), reverse=True);
+        neutralTiles.sort(key=lambda x: self.SortBySafestNestPriority(x, world, enemy_units, friendly_units, range));
+        return neutralTiles;
+
+    def SortBySafestNestPriority(self, x, world, enemy_units, friendly_units, range):
+        enemies = self.CheckEnemiesWithinRange(world, enemy_units, x.position, range);
+        return self.CheckContestRange(world, self.SumUnitValue(enemies), friendly_units, enemies[0], x.position);
 
     """
     Contest Range
     """
-    def CheckContestRange(self, world, total_army_value, friendly_units, enemy_position, nest_position):
+    def CheckContestRange(self, world, subset_army_value, friendly_units, enemy_position, nest_position):
         defendingUnitsTAV = 0
         for unit in friendly_units:
             if world.get_shortest_path_distance(nest_position, unit.position)  < world.get_shortest_path_distance(nest_position, enemy_position):
                 defendingUnitsTAV+= unit.health;
 
-        return defendingUnitsTAV - total_army_value
+        return defendingUnitsTAV - subset_army_value
 
     def CheckEnemiesWithinRange(self, world, enemy_units, nest_position, range):
         enemies = []
@@ -133,4 +140,8 @@ class PlayerAI:
                 enemies.append(enemy);
         return enemies
 
-
+    def SumUnitValue(self, units):
+        sum = 0;
+        for unit in units:
+            sum += unit.health;
+        return sum;
