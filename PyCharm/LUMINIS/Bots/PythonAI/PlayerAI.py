@@ -139,7 +139,7 @@ class PlayerAI:
                     closestEnemies.append(enemy)
             nestEnemyPairs.append((position, closestEnemies))
         self.EXPANSIONLIST.append(nestEnemyPairs)
-
+    @staticmethod
     def IsNestable(self, world, nestPoint):
         if world.get_tile_at(nestPoint).is_neutral():
             return False;
@@ -199,3 +199,39 @@ class PlayerAI:
         for unit in units:
             sum += unit.health;
         return sum;
+
+    class UnitMemory:
+        UNIT = None
+
+        def __init__(self, unit):
+            """
+            Any instantiation code goes here
+            """
+            self.UNIT = unit
+
+        def ConstructNest(self, world, position):
+            if(PlayerAI.IsNestable(self, world, position)):
+                closestAdj = None;
+                shortestDistance = 0;
+                adjTiles = world.get_tiles_around(position)
+                for adj in adjTiles:
+                    distance = world.get_shortest_path_distance(self.UNIT.position, adjTiles[adj].position)
+                    if distance != 0 and distance < shortestDistance and not(adjTiles[adj].is_friendly()) and not(adjTiles[adj].is_permanently_owned()):
+                        shortestDistance = distance
+                        closestAdj = adjTiles[adj].position
+                path = world.get_shortest_path(self.UNIT.position, closestAdj.position)
+                world.move(self.UNIT, path[0])
+
+
+
+        def AttackEnemyNest(self, world):
+            closestAdj = None;
+            shortestDistance = 0;
+            adjTiles = world.get_tiles_around(self.UNIT.position)
+            for adj in adjTiles:
+                distance = world.get_shortest_path_distance(self.UNIT.position, adjTiles[adj].position)
+                if distance != 0 and distance < shortestDistance:
+                    shortestDistance = distance
+                    closestAdj = adjTiles[adj].position
+            path = world.get_shortest_path(self.UNIT.position, closestAdj.position)
+            world.move(self.UNIT, path[0])
