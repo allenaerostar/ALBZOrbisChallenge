@@ -11,7 +11,7 @@ class PlayerAI:
     EXPANSIONLIST = [];
     POTENTIALNESTS = [];
     UNITMEMORIES = [];
-    TOAVOID = [];
+    AVOIDCONSTRUCTINGNESTS = [];
 
     def __init__(self):
         """
@@ -44,20 +44,33 @@ class PlayerAI:
             memory = self.GetMemory(unit);
             if memory is None:
                 #determine here
-                memory = self.NewMemory(unit, 'Farm');
                 if(len(self.POTENTIALNESTS) > 0):
-                    memory.POTENTIAL_NEST = self.POTENTIALNESTS[0];
-                    self.TOAVOID.append(self.POTENTIALNESTS[0]);
+                    memory = self.NewMemory(unit, 'Farm');
+                    memory.POTENTIAL_NEST = self.GetClosestPotentialNest(world, memory);
+                    #self.AVOIDCONSTRUCTINGNESTS.append(memory.POTENTIAL_NEST);
+
+                else:
+                    memory = self.NewMemory(unit, 'Free');
 
             #path = world.get_shortest_path(unit.position,
             #                               world.get_closest_capturable_tile_from(unit.position, None).position,
             #                               None)
             #if path: world.move(unit, path[0])
 
-            memory.Move(world, enemy_units, friendly_units, self.TileListToPositions(self.TOAVOID));
+            memory.Move(world, enemy_units, friendly_units, self.TileListToPositions(self.AVOIDCONSTRUCTINGNESTS));
 
         #print("Average:" + str(self.GetAverageNestGrowth(0, self.TURNCOUNT, True)))
         self.TURNCOUNT += 1;
+
+    def GetClosestPotentialNest(self, world, memory):
+        shortestDistance = 999;
+        target = None;
+        for location in self.POTENTIALNESTS:
+            distance = world.get_shortest_path_distance(memory.POSITION, location.position);
+            if distance != 0 and distance < shortestDistance:
+                shortestDistance = distance;
+                target = location;
+        return target;
 
     def RemoveEmptyMemories(self):
         toRemove = [];
@@ -67,6 +80,7 @@ class PlayerAI:
             else:
                 toRemove.append(mem);
         for mem in toRemove:
+            mem.UNIT = None;
             self.UNITMEMORIES.remove(mem);
 
     def GetMemory(self, unit):
@@ -147,7 +161,7 @@ class PlayerAI:
         self.EXPANSIONLIST.append(nestEnemyPairs)
     @staticmethod
     def IsNestable(self, world, nestPoint):
-        if world.get_tile_at(nestPoint).is_neutral():
+        if not(world.get_tile_at(nestPoint).is_neutral()):
             return False;
 
         tilesAround = world.get_tiles_around(nestPoint);
@@ -234,7 +248,7 @@ class PlayerAI:
             pass
 
         def IsNestable(self, world, nestPoint):
-            if world.get_tile_at(nestPoint).is_neutral():
+            if not(world.get_tile_at(nestPoint).is_neutral()):
                 return False;
 
             tilesAround = world.get_tiles_around(nestPoint);
@@ -245,11 +259,15 @@ class PlayerAI:
 
         def Move(self, world, enemy_units, friendly_units, toAvoid):
             if self.MYTYPE == self.TASKTYPE.FARM:
+                print("FARMING");
                 print(self.POTENTIAL_NEST);
-                if self.IsNestable(world, self.POTENTIAL_NEST.position):
+                if not(self.IsNestable(world, self.POTENTIAL_NEST.position)) or self.POTENTIAL_NEST is None:
                     self.MYTYPE = self.TASKTYPE.FREE;
                 else:
                     self.ConstructNest(world, friendly_units, toAvoid);
+
+            if self.MYTYPE == self.TASKTYPE.FREE:
+                self.FreeMovement(world);
 
         #FARM specific parameters
         POTENTIAL_NEST = None;
@@ -295,3 +313,14 @@ class PlayerAI:
                     closestAdj = adjTiles[adj]
             path = world.get_shortest_path(self.UNIT.position, closestAdj.position)
             world.move(self.UNIT, path[0])
+
+
+        def FreeMovement(self, world):
+            path = world.get_shortest_path(self.POSITION,
+                                           world.get_closest_capturable_tile_from(self.POSITION, None).position,
+                                           None)
+            if path is not None:
+                if len(path) > 0:
+                    if world.move(self.UNIT, path[0]) != MoveType.REST:
+                        self.POSITION = path[0];
+
