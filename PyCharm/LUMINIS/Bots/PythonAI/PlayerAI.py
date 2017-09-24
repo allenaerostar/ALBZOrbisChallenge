@@ -5,11 +5,20 @@ from PythonClientAPI.Game.World import World
 
 
 class PlayerAI:
+    class UnitMemory:
+        UNIT = None;
+        WASCHECKED = False;
+
+        def __init__(self):
+            self.WASCHECKED = True;
+            pass
+
     NESTCHANGES_ENEMY = list();
     NESTCHANGES_FRIENDLY = list();
     TURNCOUNT = 1;
     EXPANSIONLIST = [];
     POTENTIALNESTS = [];
+    UNITMEMORIES = [];
 
     def __init__(self):
         """
@@ -31,19 +40,46 @@ class PlayerAI:
         self.UpdateNestChanges(world, False);
         self.UpdateExpansionList(world, enemy_units);
         POTENTIALNESTS = self.GetListOfPossibleNests(world, enemy_units, friendly_units);
+        self.RemoveEmptyMemories();
 
         # Fly away to freedom, daring fireflies
         # Build thou nests
         # Grow, become stronger
         # Take over the world
         for unit in friendly_units:
+            #check for persistent memory or create a new one
+            memory = self.GetMemory(unit);
+            if memory is None:
+                self.NewMemory(unit);
             path = world.get_shortest_path(unit.position,
                                            world.get_closest_capturable_tile_from(unit.position, None).position,
                                            None)
             if path: world.move(unit, path[0])
 
-        print("Average:" + str(self.GetAverageNestGrowth(0, self.TURNCOUNT, True)))
+        #print("Average:" + str(self.GetAverageNestGrowth(0, self.TURNCOUNT, True)))
         self.TURNCOUNT += 1;
+
+    def RemoveEmptyMemories(self):
+        toRemove = [];
+        for mem in self.UNITMEMORIES:
+            if mem.WASCHECKED:
+                mem.WASCHECKED = False;
+            else:
+                toRemove.append(mem);
+        for mem in toRemove:
+            self.UNITMEMORIES.remove(mem);
+
+    def GetMemory(self, unit):
+        for mem in self.UNITMEMORIES:
+            if mem.UNIT == unit:
+                return mem;
+        return None;
+
+    def NewMemory(self, unit):
+        newMem = self.UnitMemory();
+        newMem.UNIT = unit;
+        self.UNITMEMORIES.append(newMem);
+        return newMem;
 
     """
     Push the number of nests that have been created this turn for a specified player
@@ -115,15 +151,16 @@ class PlayerAI:
         return True;
 
     def GetListOfPossibleNests(self, world, enemy_units, friendly_units):
-        RANGE = 6;
+        RANGE_ENEMY = 6;
+        RANGE_PLAYER = 7;
         neutralTiles = world.get_neutral_tiles();
         #neutralTiles.sort(key=lambda x: world.get_shortest_path(x.position, world.get_closest_friendly_nest_from(x.position, None), None), reverse=True);
-        neutralTiles.sort(key=lambda x: self.SortBySafestNestPriority(x, world, enemy_units, friendly_units, RANGE));
+        neutralTiles.sort(key=lambda x: self.SortBySafestNestPriority(x, world, enemy_units, friendly_units, RANGE_ENEMY, RANGE_PLAYER), reverse=True);
         return neutralTiles;
 
-    def SortBySafestNestPriority(self, x, world, enemy_units, friendly_units, range):
-        enemies = self.CheckEnemiesWithinRange(world, enemy_units, x.position, range);
-        friends = self.CheckAlliesWithinRange(world, friendly_units, x.position, range);
+    def SortBySafestNestPriority(self, x, world, enemy_units, friendly_units, rangeEnemy, rangePlayer):
+        enemies = self.CheckEnemiesWithinRange(world, enemy_units, x.position, rangeEnemy);
+        friends = self.CheckAlliesWithinRange(world, friendly_units, x.position, rangePlayer);
 
         if(len(friends) == 0):
             return -999;
