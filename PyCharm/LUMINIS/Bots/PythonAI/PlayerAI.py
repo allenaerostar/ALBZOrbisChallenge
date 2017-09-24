@@ -2,7 +2,7 @@ from PythonClientAPI.Game import PointUtils
 from PythonClientAPI.Game.Entities import FriendlyUnit, EnemyUnit, Tile
 from PythonClientAPI.Game.Enums import Direction, MoveType, MoveResult
 from PythonClientAPI.Game.World import World
-
+from enum import Enum
 
 class PlayerAI:
     NESTCHANGES_ENEMY = list();
@@ -11,6 +11,7 @@ class PlayerAI:
     EXPANSIONLIST = [];
     POTENTIALNESTS = [];
     UNITMEMORIES = [];
+    TOAVOID = [];
 
     def __init__(self):
         """
@@ -31,7 +32,7 @@ class PlayerAI:
         self.UpdateNestChanges(world, True);
         self.UpdateNestChanges(world, False);
         self.UpdateExpansionList(world, enemy_units);
-        POTENTIALNESTS = self.GetListOfPossibleNests(world, enemy_units, friendly_units);
+        self.POTENTIALNESTS = self.GetListOfPossibleNests(world, enemy_units, friendly_units);
         self.RemoveEmptyMemories();
 
         # Fly away to freedom, daring fireflies
@@ -42,13 +43,18 @@ class PlayerAI:
             #check for persistent memory or create a new one
             memory = self.GetMemory(unit);
             if memory is None:
-                memory = self.NewMemory(unit);
+                #determine here
+                memory = self.NewMemory(unit, 'Farm');
+                if(len(self.POTENTIALNESTS) > 0):
+                    memory.POTENTIAL_NEST = self.POTENTIALNESTS[0];
+                    self.TOAVOID.append(self.POTENTIALNESTS[0]);
+
             #path = world.get_shortest_path(unit.position,
             #                               world.get_closest_capturable_tile_from(unit.position, None).position,
             #                               None)
             #if path: world.move(unit, path[0])
-            if(len(POTENTIALNESTS) > 0):
-                memory.ConstructNest(world, POTENTIALNESTS[0]);
+
+            memory.Move(world, enemy_units, friendly_units, self.TileListToPositions(self.TOAVOID));
 
         #print("Average:" + str(self.GetAverageNestGrowth(0, self.TURNCOUNT, True)))
         self.TURNCOUNT += 1;
@@ -69,10 +75,17 @@ class PlayerAI:
                 return mem;
         return None;
 
-    def NewMemory(self, unit):
-        newMem = self.UnitMemory(unit);
+    def NewMemory(self, unit, type):
+        newMem = self.UnitMemory(unit, type);
         self.UNITMEMORIES.append(newMem);
         return newMem;
+
+    def TileListToPositions(self, tileList):
+        positions = [];
+        for tile in tileList:
+            positions.append(tile.position);
+
+        return positions;
 
     """
     Push the number of nests that have been created this turn for a specified player
@@ -137,7 +150,7 @@ class PlayerAI:
         if world.get_tile_at(nestPoint).is_neutral():
             return False;
 
-        tilesAround = nestPoint.world.get_tiles_around();
+        tilesAround = world.get_tiles_around(nestPoint);
         for key in tilesAround:
             if tilesAround[key].is_permanently_owned():
                 return False;
@@ -145,10 +158,12 @@ class PlayerAI:
 
     def GetListOfPossibleNests(self, world, enemy_units, friendly_units):
         RANGE_ENEMY = 6;
-        RANGE_PLAYER = 7;
+        RANGE_PLAYER = 6;
         neutralTiles = world.get_neutral_tiles();
         #neutralTiles.sort(key=lambda x: world.get_shortest_path(x.position, world.get_closest_friendly_nest_from(x.position, None), None), reverse=True);
         neutralTiles.sort(key=lambda x: self.SortBySafestNestPriority(x, world, enemy_units, friendly_units, RANGE_ENEMY, RANGE_PLAYER), reverse=True);
+
+
         return neutralTiles;
 
     def SortBySafestNestPriority(self, x, world, enemy_units, friendly_units, rangeEnemy, rangePlayer):
@@ -193,41 +208,90 @@ class PlayerAI:
             sum += unit.health;
         return sum;
 
+
+
+    #Memory Class
     class UnitMemory:
         UNIT = None;
+        POSITION = None;
         WASCHECKED = False;
+        MYTYPE = None;
 
-        def __init__(self, unit):
+        class TASKTYPE:
+            ATTACK, DEFEND, FARM, FREE = range(4)
+
+        def __init__(self, unit, type):
             self.UNIT = unit;
+            self.POSITION = unit.position;
             self.WASCHECKED = True;
+
+            if type == 'Attack':
+                self.MYTYPE = self.TASKTYPE.ATTACK;
+            elif type == 'Defend':
+                self.MYTYPE = self.TASKTYPE.DEFEND;
+            elif type == 'Farm':
+                self.MYTYPE = self.TASKTYPE.FARM;
             pass
 
-        def ConstructNest(self, world, tile):
-            closestAdj = None;
-            shortestDistance = 0;
-            adjTiles = world.get_tiles_around(tile.position)
-            for adj in adjTiles:
-                distance = world.get_shortest_path_distance(self.UNIT.position, adjTiles[adj].position)
-                if distance != 0 and distance < shortestDistance and not (adjTiles[adj].is_friendly()) and not (
-                adjTiles[adj].is_permanently_owned()):
-                    print("RUN HERE");
-                    shortestDistance = distance
-                    closestAdj = adjTiles[adj].position
-            print(closestAdj);
-            path = world.get_shortest_path(self.UNIT.position, closestAdj.position)
-            world.move(self.UNIT, path[0])
+        def IsNestable(self, world, nestPoint):
+            if world.get_tile_at(nestPoint).is_neutral():
+                return False;
 
+            tilesAround = world.get_tiles_around(nestPoint);
+            for key in tilesAround:
+                if tilesAround[key].is_permanently_owned():
+                    return False;
+            return True;
+
+        def Move(self, world, enemy_units, friendly_units, toAvoid):
+            if self.MYTYPE == self.TASKTYPE.FARM:
+                print(self.POTENTIAL_NEST);
+                if self.IsNestable(world, self.POTENTIAL_NEST.position):
+                    self.MYTYPE = self.TASKTYPE.FREE;
+                else:
+                    self.ConstructNest(world, friendly_units, toAvoid);
+
+        #FARM specific parameters
+        POTENTIAL_NEST = None;
+        def ConstructNest(self, world, friendly_units, toAvoid):
+            #print(tile);
+            adjTiles = world.get_tiles_around(self.POTENTIAL_NEST.position);
+            filteredTiles = [];
+            for adj in adjTiles:
+                distance = world.get_shortest_path_distance(self.POSITION, adjTiles[adj].position);
+                if distance != 0 and not (adjTiles[adj].is_friendly()) and not (
+                    adjTiles[adj].is_permanently_owned()):
+                    filteredTiles.append(adjTiles[adj]);
+
+            if len(filteredTiles) == 0:
+                return False;
+
+            avoid = set();
+            avoid.add(self.POTENTIAL_NEST.position);
+            for friend in friendly_units:
+                avoid.add(friend.position);
+            for av in toAvoid:
+                avoid.add(av);
+
+            #BUG: self.UNIT.position WAS NOT PASSED BY REFERENCE !!!!
+            path = world.get_shortest_path(self.POSITION, filteredTiles[0].position, avoid)
+            if path is not None:
+                if len(path) > 0:
+                    if world.move(self.UNIT, path[0]) != MoveType.REST:
+                        self.POSITION = path[0];
+            return True;
 
 
 
         def AttackEnemyNest(self, world):
             closestAdj = None;
-            shortestDistance = 0;
+            shortestDistance = 999;
             adjTiles = world.get_tiles_around(self.UNIT.position)
             for adj in adjTiles:
                 distance = world.get_shortest_path_distance(self.UNIT.position, adjTiles[adj].position)
-                if distance != 0 and distance < shortestDistance:
+                if distance != 0 and distance < shortestDistance and not (adjTiles[adj].is_friendly()) and not (
+                adjTiles[adj].is_permanently_owned()):
                     shortestDistance = distance
-                    closestAdj = adjTiles[adj].position
+                    closestAdj = adjTiles[adj]
             path = world.get_shortest_path(self.UNIT.position, closestAdj.position)
             world.move(self.UNIT, path[0])
