@@ -5,14 +5,6 @@ from PythonClientAPI.Game.World import World
 
 
 class PlayerAI:
-    class UnitMemory:
-        UNIT = None;
-        WASCHECKED = False;
-
-        def __init__(self):
-            self.WASCHECKED = True;
-            pass
-
     NESTCHANGES_ENEMY = list();
     NESTCHANGES_FRIENDLY = list();
     TURNCOUNT = 1;
@@ -50,11 +42,13 @@ class PlayerAI:
             #check for persistent memory or create a new one
             memory = self.GetMemory(unit);
             if memory is None:
-                self.NewMemory(unit);
-            path = world.get_shortest_path(unit.position,
-                                           world.get_closest_capturable_tile_from(unit.position, None).position,
-                                           None)
-            if path: world.move(unit, path[0])
+                memory = self.NewMemory(unit);
+            #path = world.get_shortest_path(unit.position,
+            #                               world.get_closest_capturable_tile_from(unit.position, None).position,
+            #                               None)
+            #if path: world.move(unit, path[0])
+            if(len(POTENTIALNESTS) > 0):
+                memory.ConstructNest(world, POTENTIALNESTS[0]);
 
         #print("Average:" + str(self.GetAverageNestGrowth(0, self.TURNCOUNT, True)))
         self.TURNCOUNT += 1;
@@ -76,8 +70,7 @@ class PlayerAI:
         return None;
 
     def NewMemory(self, unit):
-        newMem = self.UnitMemory();
-        newMem.UNIT = unit;
+        newMem = self.UnitMemory(unit);
         self.UNITMEMORIES.append(newMem);
         return newMem;
 
@@ -201,26 +194,29 @@ class PlayerAI:
         return sum;
 
     class UnitMemory:
-        UNIT = None
+        UNIT = None;
+        WASCHECKED = False;
 
         def __init__(self, unit):
-            """
-            Any instantiation code goes here
-            """
-            self.UNIT = unit
+            self.UNIT = unit;
+            self.WASCHECKED = True;
+            pass
 
-        def ConstructNest(self, world, position):
-            if(PlayerAI.IsNestable(self, world, position)):
-                closestAdj = None;
-                shortestDistance = 0;
-                adjTiles = world.get_tiles_around(position)
-                for adj in adjTiles:
-                    distance = world.get_shortest_path_distance(self.UNIT.position, adjTiles[adj].position)
-                    if distance != 0 and distance < shortestDistance and not(adjTiles[adj].is_friendly()) and not(adjTiles[adj].is_permanently_owned()):
-                        shortestDistance = distance
-                        closestAdj = adjTiles[adj].position
-                path = world.get_shortest_path(self.UNIT.position, closestAdj.position)
-                world.move(self.UNIT, path[0])
+        def ConstructNest(self, world, tile):
+            closestAdj = None;
+            shortestDistance = 0;
+            adjTiles = world.get_tiles_around(tile.position)
+            for adj in adjTiles:
+                distance = world.get_shortest_path_distance(self.UNIT.position, adjTiles[adj].position)
+                if distance != 0 and distance < shortestDistance and not (adjTiles[adj].is_friendly()) and not (
+                adjTiles[adj].is_permanently_owned()):
+                    print("RUN HERE");
+                    shortestDistance = distance
+                    closestAdj = adjTiles[adj].position
+            print(closestAdj);
+            path = world.get_shortest_path(self.UNIT.position, closestAdj.position)
+            world.move(self.UNIT, path[0])
+
 
 
 
