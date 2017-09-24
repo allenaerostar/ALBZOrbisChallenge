@@ -45,12 +45,15 @@ class PlayerAI:
             if memory is None:
                 #determine here
                 if(len(self.POTENTIALNESTS) > 0):
-                    memory = self.NewMemory(unit, 'Farm');
+                    memory = self.NewMemory(world, unit, 'Farm');
                     memory.POTENTIAL_NEST = self.GetClosestPotentialNest(world, memory);
                     #self.AVOIDCONSTRUCTINGNESTS.append(memory.POTENTIAL_NEST);
 
+                elif self.TotalArmyValue(friendly_units)*1.5 > self.TotalArmyValue(enemy_units) or len(self.POTENTIALNESTS) == 0:
+                    memory = self.NewMemory(world, unit, 'Attack');
+
                 else:
-                    memory = self.NewMemory(unit, 'Free');
+                    memory = self.NewMemory(world, unit, 'Free');
 
             #path = world.get_shortest_path(unit.position,
             #                               world.get_closest_capturable_tile_from(unit.position, None).position,
@@ -89,8 +92,8 @@ class PlayerAI:
                 return mem;
         return None;
 
-    def NewMemory(self, unit, type):
-        newMem = self.UnitMemory(unit, type);
+    def NewMemory(self, world, unit, type):
+        newMem = self.UnitMemory(world, unit, type);
         self.UNITMEMORIES.append(newMem);
         return newMem;
 
@@ -254,6 +257,8 @@ class PlayerAI:
                 self.MYTYPE = self.TASKTYPE.DEFEND;
             elif type == 'Farm':
                 self.MYTYPE = self.TASKTYPE.FARM;
+            elif type == 'Free':
+                self.MYTYPE = self.TASKTYPE.FREE;
             pass
 
         def IsNestable(self, world, nestPoint):
@@ -274,6 +279,7 @@ class PlayerAI:
                     self.MYTYPE = self.TASKTYPE.FREE;
                 else:
                     self.ConstructNest(world, friendly_units, toAvoid);
+
             elif self.MYTYPE == self.TASKTYPE.ATTACK:
                 if not (self.TARGET_NEST.is_friendly()) and not (self.TARGET_NEST.is_permanently_owned()):
                     self.AttackEnemyNest(world)
@@ -315,7 +321,7 @@ class PlayerAI:
 
         def AttackEnemyNest(self, world):
 
-            path = world.get_shortest_path(self.position, self.TARGET_NEST.position)
+            path = world.get_shortest_path(self.POSITION, self.TARGET_NEST.position, None)
             world.move(self.UNIT, path[0])
 
         def FreeMovement(self, world):
