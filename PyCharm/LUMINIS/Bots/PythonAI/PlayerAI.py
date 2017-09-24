@@ -223,21 +223,30 @@ class PlayerAI:
         return sum;
 
 
-
     #Memory Class
     class UnitMemory:
         UNIT = None;
         POSITION = None;
         WASCHECKED = False;
         MYTYPE = None;
+        TARGET_NEST = None;
 
         class TASKTYPE:
             ATTACK, DEFEND, FARM, FREE = range(4)
 
-        def __init__(self, unit, type):
+        def __init__(self, world, unit, type):
             self.UNIT = unit;
             self.POSITION = unit.position;
             self.WASCHECKED = True;
+            closestNest = None;
+            closestDistance = 999;
+            for nest in world.get_enemy_nest_positions():
+                nestDistance = world.get_shortest_path_distance(self.POSITION, nest)
+                if nestDistance < closestDistance:
+                    closestDistance = nestDistance
+                    closestNest = nest
+            self.TARGET_NEST = world.get_tile_at(closestNest)
+
 
             if type == 'Attack':
                 self.MYTYPE = self.TASKTYPE.ATTACK;
@@ -265,6 +274,11 @@ class PlayerAI:
                     self.MYTYPE = self.TASKTYPE.FREE;
                 else:
                     self.ConstructNest(world, friendly_units, toAvoid);
+            elif self.MYTYPE == self.TASKTYPE.ATTACK:
+                if not (self.TARGET_NEST.is_friendly()) and not (self.TARGET_NEST.is_permanently_owned()):
+                    self.AttackEnemyNest(world)
+                else:
+                    self.MYTYPE = self.TASKTYPE.FREE;
 
             if self.MYTYPE == self.TASKTYPE.FREE:
                 self.FreeMovement(world);
@@ -299,21 +313,10 @@ class PlayerAI:
                         self.POSITION = path[0];
             return True;
 
-
-
         def AttackEnemyNest(self, world):
-            closestAdj = None;
-            shortestDistance = 999;
-            adjTiles = world.get_tiles_around(self.UNIT.position)
-            for adj in adjTiles:
-                distance = world.get_shortest_path_distance(self.UNIT.position, adjTiles[adj].position)
-                if distance != 0 and distance < shortestDistance and not (adjTiles[adj].is_friendly()) and not (
-                adjTiles[adj].is_permanently_owned()):
-                    shortestDistance = distance
-                    closestAdj = adjTiles[adj]
-            path = world.get_shortest_path(self.UNIT.position, closestAdj.position)
-            world.move(self.UNIT, path[0])
 
+            path = world.get_shortest_path(self.position, self.TARGET_NEST.position)
+            world.move(self.UNIT, path[0])
 
         def FreeMovement(self, world):
             path = world.get_shortest_path(self.POSITION,
@@ -323,4 +326,3 @@ class PlayerAI:
                 if len(path) > 0:
                     if world.move(self.UNIT, path[0]) != MoveType.REST:
                         self.POSITION = path[0];
-
